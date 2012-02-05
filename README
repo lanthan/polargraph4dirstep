@@ -1,0 +1,16 @@
+From Sandy Noble's great firmware and controller:
+http://code.google.com/p/polargraph/
+http://polargraph.co.uk/
+released under GNU GPL v3
+
+polargraph server code (=firmware) modified to run with the Kritzler-like hardware: stepper drivers (dir and step pins) instead of the Adafruit motor shield. This allows for more powerful steppers, improved precision, an expanded choice of hardware.
+Currently running on a testboard Atmega328 with two stepstick drivers and a servo, using unmodified polargraph controller from SVN
+
+
+
+latest update 20120205  lanthan
+merged upsteram svn r237 changes
+
+Status: partly working
+C17 NOT working properly 
+C1 appears to work
