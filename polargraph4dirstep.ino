@@ -3,8 +3,8 @@
 // released under GNU GPL v3
 // polargraph server code modified to run with the Kritzler hardware
 // stepper drivers (dir and step pins) instead of Adafruit motor shield
-// latest update 20120205  lanthan
-// merged upsteram svn r237 changes
+// latest update 20120206  lanthan
+// merged upsteram svn r243 changes
 // C17 NOT working currently
 // C1 appears to work
 // 
@@ -15,11 +15,11 @@
 #include <EEPROM.h>
 
 //  EEPROM addresses
-const int EEPROM_MACHINE_WIDTH = 0;
-const int EEPROM_MACHINE_HEIGHT = 2;
-const int EEPROM_MACHINE_NAME = 4;
-const int EEPROM_MACHINE_MM_PER_REV = 14;
-const int EEPROM_MACHINE_STEPS_PER_REV = 16;
+const byte EEPROM_MACHINE_WIDTH = 0;
+const byte EEPROM_MACHINE_HEIGHT = 2;
+const byte EEPROM_MACHINE_NAME = 4;
+const byte EEPROM_MACHINE_MM_PER_REV = 14;
+const byte EEPROM_MACHINE_STEPS_PER_REV = 16;
 
 // Pen raising servo
 Servo penHeight;
@@ -42,31 +42,27 @@ const int DEFAULT_STEPS_PER_REV = 3200;
 String machineName = "";
 const String DEFAULT_MACHINE_NAME = "PG01    ";
 
-float currentMaxSpeed = 1600.0;
-float currentAcceleration = 400.0;
+float currentMaxSpeed = 2000.0;
+float currentAcceleration = 600.0;
 
 float SUPERFAST_ACCELERATION = 6000;
-
-//AF_Stepper motora(motorStepsPerRev, 1); //20120128 lanthan   using pololus A4983 instead
-//AF_Stepper motorb(motorStepsPerRev, 2); //20120128 lanthan
 
 const int motoraStepPin = 10; //20120128 lanthan   pinout from the Kritzler
 const int motoraDirPin = 9;   //20120128 lanthan
 const int motorbStepPin = 12; //20120128 lanthan
 const int motorbDirPin = 11;  //20120128 lanthan
 
-
 AccelStepper motora(1,motoraStepPin, motoraDirPin); 
 AccelStepper motorb(1,motorbStepPin, motorbDirPin); 
 
-int startLengthMM = 900;
+int startLengthMM = 899; // lanthan: I guess initial belt length
 
 float mmPerStep = mmPerRev / motorStepsPerRev;
 float stepsPerMM = motorStepsPerRev / mmPerRev;
 
-int pageWidth = machineWidth * stepsPerMM;
-int pageHeight = machineHeight * stepsPerMM;
-int maxLength = 0;
+long pageWidth = machineWidth * stepsPerMM;     
+long pageHeight = machineHeight * stepsPerMM;   
+long maxLength = 0;                             
 
 
 static String rowAxis = "A";
@@ -78,50 +74,10 @@ const int SRAM_SIZE = 2048;
 const String FREE_MEMORY_STRING = "MEMORY,";
 int availMem = 0;
 
-static float penWidth = 0.2; // line width in mm
-
-// const int stepType = INTERLEAVE; //20120128 lanthan
+static float penWidth = 0.5; // line width in mm
 
 boolean reportingPosition = true;
 boolean acceleration = true;
-
-/*              
-void forwarda() {  
-
-//  motora.onestep(FORWARD, stepType); //20120128 lanthan
-
-motora.move(+1);  //20120128 lanthan
-motora.run();     //20120128 lanthan
-
-}
-void backwarda() {  
-
-//  motora.onestep(BACKWARD, stepType); // 20120128 lanthan
-motora.move(-1);   //20120128 lanthan
-motora.run();     //20120128 lanthan
- 
-
-}
-
-// AccelStepper accelA(forwarda, backwarda); // 20120204 lanthan
-
-
-void forwardb() {  
-//  motorb.onestep(FORWARD, stepType); //20120128 lanthan
-motorb.move(+1);  //20120128 lanthan
-motorb.run();     //20120128 lanthan
-
-}
-void backwardb() {  
-//  motorb.onestep(BACKWARD, stepType); //20120128 lanthan
-motorb.move(-1);  //20120128 lanthan
-motorb.run();     //20120128 lanthan
-
-}
-
-// AccelStepper accelB(forwardb, backwardb); // 20120204 lanthan
-
-*/   // 20120204 lanthan
 
 boolean currentlyRunning = false;
 
@@ -135,7 +91,7 @@ int inNoOfParams;
 
 static boolean lastWaveWasTop = true;
 static boolean lastMotorBiasWasA = true;
-//static boolean drawingLeftToRight = true;
+
 
 //  Drawing direction
 const static byte DIR_NE = 1;
@@ -153,7 +109,6 @@ const static byte DIR_MODE_AUTO = 1;
 const static byte DIR_MODE_PRESET = 2;
 const static byte DIR_MODE_RANDOM = 3;
 static int globalDrawDirectionMode = DIR_MODE_AUTO;
-
 
 static int currentRow = 0;
 
@@ -206,6 +161,8 @@ const static String CMD_SETMOTORSPEED = "C31";
 const static String CMD_SETMOTORACCEL = "C32";
 const static String CMD_END = ",END";
 
+
+
 void setup() 
 {
   Serial.begin(57600);           // set up Serial library at 57600 bps
@@ -214,10 +171,6 @@ void setup()
 
   loadMachineSpecFromEeprom();
 
-//  accelA.setMaxSpeed(currentMaxSpeed);
-//  accelA.setAcceleration(currentAcceleration);  
-//  accelB.setMaxSpeed(currentMaxSpeed);
-//  accelB.setAcceleration(currentAcceleration);
 
   motora.setMaxSpeed(currentMaxSpeed);               // 20120204 lanthan
   motora.setAcceleration(currentAcceleration);       // 20120204 lanthan
@@ -226,8 +179,6 @@ void setup()
 
 
   float startLength = ((float) startLengthMM / (float) mmPerRev) * (float) motorStepsPerRev;
-//  accelA.setCurrentPosition(startLength);
-//  accelB.setCurrentPosition(startLength);
 
   motora.setCurrentPosition(startLength);   // 20120204 lanthan
   motorb.setCurrentPosition(startLength);   // 20120204 lanthan
@@ -326,7 +277,6 @@ void movePenUp()
 {
   penHeight.attach(PEN_HEIGHT_SERVO_PIN);
   for (int i=DOWN_POSITION; i>UP_POSITION; i--) {
-//    Serial.println(i);
     penHeight.write(i);
     delay(15);
   }
@@ -346,7 +296,6 @@ void movePenDown()
 {
   penHeight.attach(PEN_HEIGHT_SERVO_PIN);
   for (int i=UP_POSITION; i<DOWN_POSITION; i++) {
-//    Serial.println(i);
     penHeight.write(i);
     delay(15);
   }
@@ -389,6 +338,8 @@ void acknowledge(String command)
   Serial.print(CMD_ACK);
   Serial.println(command);
 }
+
+
 
 void loop()
 {
@@ -455,6 +406,7 @@ void loop()
     ready();
   }
 }
+
 
 
 void requestResend()
@@ -724,7 +676,7 @@ void setMachineNameFromCommand()
 
 void setMachineMmPerRevFromCommand()
 {
-  int mmPerRev = asInt(inParam1);
+  int mmPerRev = asInt(inParam1);  // shouldnt this be a float? 20120206 lanthan
   EEPROMWriteInt(EEPROM_MACHINE_MM_PER_REV, mmPerRev);
   loadMachineSpecFromEeprom();
 }
@@ -767,8 +719,6 @@ void setMotorAcceleration()
 void setMotorAcceleration(float accel)
 {
   currentAcceleration = accel;
-//  accelA.setAcceleration(currentAcceleration);
-//  accelB.setAcceleration(currentAcceleration);
   motora.setAcceleration(currentAcceleration);  // 20120204 lanthan
   motorb.setAcceleration(currentAcceleration);  // 20120204 lanthan
   Serial.print(F("New acceleration: "));
@@ -851,12 +801,12 @@ void changeDrawingDirection()
   
   void testPattern()
   {
-    int rowWidth = asInt(inParam1);
+    long rowWidth = asLong(inParam1);
     int noOfIncrements = asInt(inParam2);
 
     boolean ltr = true;
     
-    for (int w = rowWidth; w < (w+(noOfIncrements*5)); w+=5)
+    for (long w = rowWidth; w < (w+(noOfIncrements*5)); w+=5)
     {
       for (int i = 0;  i <= maxDensity(penWidth, w); i++)
       {
@@ -873,7 +823,7 @@ void changeDrawingDirection()
   
   void testPenWidth()
   {
-    int rowWidth = asInt(inParam1);
+    long rowWidth = asLong(inParam1);
     float startWidth = asFloat(inParam2);
     float endWidth = asFloat(inParam3); 
     float incSize = asFloat(inParam4);
@@ -914,7 +864,7 @@ void changeDrawingDirection()
 
   void testPenWidthScribble()
   {
-    int rowWidth = asInt(inParam1);
+    long rowWidth = asLong(inParam1);
     float startWidth = asFloat(inParam2);
     float endWidth = asFloat(inParam3); 
     float incSize = asFloat(inParam4);
@@ -924,14 +874,11 @@ void changeDrawingDirection()
     float oldPenWidth = penWidth;
     int iterations = 0;
     
-//    int posA = accelA.currentPosition();
-//    int posB = accelB.currentPosition();
-    int posA = motora.currentPosition();  // 20120204 lanthan
-    int posB = motorb.currentPosition();  // 20120204 lanthan
+    long posA = motora.currentPosition();  // 20120204 lanthan
+    long posB = motorb.currentPosition();  // 20120204 lanthan
 
-
-    int startColumn = posA;
-    int startRow = posB;
+    long startColumn = posA;
+    long startRow = posB;
     
     for (float pw = startWidth; pw <= endWidth; pw+=incSize)
     {
@@ -974,10 +921,10 @@ void changeDrawingDirection()
 
   void drawRectangle()
   {
-    int v1A = asInt(inParam1);
-    int v1B = asInt(inParam2);
-    int v2A = asInt(inParam3);
-    int v2B = asInt(inParam4);
+    long v1A = asLong(inParam1);
+    long v1B = asLong(inParam2);
+    long v2A = asLong(inParam3);
+    long v2B = asLong(inParam4);
     
     changeLength(v1A, v1B);
 //    accelA.moveTo(v2A);       // 20120204 lanthan
@@ -1075,8 +1022,8 @@ void changeDrawingDirection()
 
 void changeLength()
 {
-  int lenA = asInt(inParam1);
-  int lenB = asInt(inParam2);
+  long lenA = asLong(inParam1);
+  long lenB = asLong(inParam2);
   if (lenA == 0)
     lenA = 10;
   if (lenB == 0) 
@@ -1085,24 +1032,10 @@ void changeLength()
   changeLength(lenA, lenB);
 }  
 
-/*void changeLength(int tA, int tB)
+void changeLength(long tA, long tB)
 {
-  accelA.moveTo(tA);
-  accelB.moveTo(tB);
-  
-  while (accelA.distanceToGo() != 0 || accelB.distanceToGo() != 0)
-  {
-    accelA.run();
-    accelB.run();
-  }
-  
-  reportPosition();
-} */
-
-void changeLength(int tA, int tB)  // 20120204 lanthan
-{
-  motora.moveTo(tA);
-  motorb.moveTo(tB);
+  motora.moveTo(tA); // 20120206 lanthan
+  motorb.moveTo(tB); // 20120206 lanthan
   
   while (motora.distanceToGo() != 0 || motorb.distanceToGo() != 0)
   {
@@ -1111,27 +1044,7 @@ void changeLength(int tA, int tB)  // 20120204 lanthan
   }
   
   reportPosition();
-}
-
-/*
-void changeLength(float tA, float tB)
-{
-//  int intPos = (int)(tA+0.5);
-//  accelA.moveTo(intPos);
-//  intPos = (int)(tB+0.5);
-//  accelB.moveTo(intPos);
-
-  accelA.moveTo(tA);
-  accelB.moveTo(tB);
-  
-  while (accelA.distanceToGo() != 0 || accelB.distanceToGo() != 0)
-  {
-    accelA.run();
-    accelB.run();
-  }
-  
-  reportPosition();
-}  */
+} 
 
 
 void changeLength(float tA, float tB)   // 20120204 lanthan
@@ -1154,8 +1067,7 @@ void changeLength(float tA, float tB)   // 20120204 lanthan
 }
 
 
-
-void changeLengthRelative(int tA, int tB)  // 20120204 lanthan
+void changeLengthRelative(long tA, long tB)  // 20120204 lanthan
 {
   motora.move(tA);
   motorb.move(tB);
@@ -1169,12 +1081,12 @@ void changeLengthRelative(int tA, int tB)  // 20120204 lanthan
   reportPosition();
 }
 
-int getMaxLength()
+long getMaxLength()
 {
 if (maxLength == 0)
   {
   float length = getMachineA(machineWidth * stepsPerMM, machineHeight * stepsPerMM);
-  maxLength = int(length+0.5);
+  maxLength = long(length+0.5);
  }
  return maxLength;
 }
@@ -1332,23 +1244,22 @@ void drawTestDirectionSquare()
 
 void drawSquarePixel() 
 {
-    int originA = asInt(inParam1);
-    int originB = asInt(inParam2);
+    long originA = asLong(inParam1);
+    long originB = asLong(inParam2);
     int size = asInt(inParam3);
     int density = asInt(inParam4);
 
     int halfSize = size / 2;
     
-    int startPointA;
-    int startPointB;
-    int endPointA;
-    int endPointB;
+    long startPointA;
+    long startPointB;
+    long endPointA;
+    long endPointB;
 
     int calcFullSize = halfSize * 2; // see if there's any rounding errors
     int offsetStart = size - calcFullSize;
     
     if (globalDrawDirectionMode == DIR_MODE_AUTO)
-    //  globalDrawDirection = getAutoDrawDirection(originA, originB, accelA.currentPosition(), accelB.currentPosition());
     globalDrawDirection = getAutoDrawDirection(originA, originB, motora.currentPosition(), motorb.currentPosition());  // 20120204 lanthan
 
     if (globalDrawDirection == DIR_SE) 
@@ -1488,8 +1399,8 @@ byte getAutoDrawDirection(long targetA, long targetB, long sourceA, long sourceB
 }
 
 void drawScribblePixel() {
-    int originA = asInt(inParam1);
-    int originB = asInt(inParam2);
+    long originA = asLong(inParam1);
+    long originB = asLong(inParam2);
     int size = asInt(inParam3);
     int density = asInt(inParam4);
     
@@ -1501,15 +1412,15 @@ void drawScribblePixel() {
     outputAvailableMemory(); 
 }
 
-void drawScribblePixel(int originA, int originB, int size, int density) {
+void drawScribblePixel(long originA, long originB, int size, int density) {
 
 //  int originA = accelA.currentPosition();
 //  int originB = accelB.currentPosition();
   
-  int lowLimitA = originA-(size/2);
-  int highLimitA = lowLimitA+size;
-  int lowLimitB = originB-(size/2);
-  int highLimitB = lowLimitB+size;
+  long lowLimitA = originA-(size/2);
+  long highLimitA = lowLimitA+size;
+  long lowLimitB = originB-(size/2);
+  long highLimitB = lowLimitB+size;
   int randA;
   int randB;
   
@@ -1744,28 +1655,15 @@ void flipWaveDirection()
   else
     lastWaveWasTop = true;
 }
-// void moveA(int dist)
-// {
-//   accelA.move(dist);
-//   while (accelA.distanceToGo() != 0)
-//     accelA.run();
-// }
-//
-// void moveB(int dist)
-// {
-//   accelB.move(dist);
-//   while (accelB.distanceToGo() != 0)
-//     accelB.run();
-// }
 
-void moveA(int dist)  // 20120204 lanthan
+void moveA(long dist)  // 20120204 lanthan
 {
   motora.move(dist);
   while (motora.distanceToGo() != 0)
     motora.run();
 }
 
-void moveB(int dist)
+void moveB(long dist)
 {
   motorb.move(dist);
   while (motorb.distanceToGo() != 0)
@@ -1777,10 +1675,8 @@ void reportPosition()
   if (reportingPosition)
   {
     Serial.print(OUT_CMD_SYNC);
-//    Serial.print(accelA.currentPosition());
     Serial.print(motora.currentPosition());  // 20120204 lanthan
     Serial.print(COMMA);
-//    Serial.print(accelB.currentPosition());
     Serial.print(motorb.currentPosition());  // 20120204 lanthan
     Serial.println(CMD_END);
     
@@ -1799,11 +1695,8 @@ void reportPosition()
 
 void setPosition()
 {
-  int targetA = asInt(inParam1);
-  int targetB = asInt(inParam2);
-
-//  accelA.setCurrentPosition(targetA);
-//  accelB.setCurrentPosition(targetB);
+  long targetA = asLong(inParam1);
+  long targetB = asLong(inParam2);
 
   motora.setCurrentPosition(targetA);    // 20120204 lanthan
   motorb.setCurrentPosition(targetB);    // 20120204 lanthan
@@ -1815,10 +1708,6 @@ void setPosition()
 
 void engageMotors()
 {
-//  accelA.runToNewPosition(accelA.currentPosition()+4);
-//  accelB.runToNewPosition(accelB.currentPosition()+4);
-//  accelA.runToNewPosition(accelA.currentPosition()-4);
-//  accelB.runToNewPosition(accelB.currentPosition()-4);
 
   motora.runToNewPosition(motora.currentPosition()+16);  // 20120204 lanthan
   motorb.runToNewPosition(motorb.currentPosition()+16);  // 20120204 lanthan
@@ -1848,9 +1737,9 @@ float getCartesianYFP(float cX, float aPos)
 }
 
 
-int getCartesianX(float aPos, float bPos)
+long getCartesianX(float aPos, float bPos)
 {
-  int calcX = int((pow(pageWidth, 2) - pow(bPos, 2) + pow(aPos, 2)) / (pageWidth*2));
+  long calcX = long((pow(pageWidth, 2) - pow(bPos, 2) + pow(aPos, 2)) / (pageWidth*2));
   return calcX;  
 }
 
@@ -1860,20 +1749,18 @@ int getCartesianX() {
   return calcX;  
 }
 
-int getCartesianY() {
-//  return getCartesianY(getCartesianX(), accelA.currentPosition());
+long getCartesianY() {
   return getCartesianY(getCartesianX(), motora.currentPosition());  // 20120204 lanthan
 }
-int getCartesianY(int cX, float aPos) {
-  int calcX = cX;
-  int calcY = int(sqrt(pow(aPos,2)-pow(calcX,2)));
+long getCartesianY(long cX, float aPos) {
+   long calcY = long(sqrt(pow(aPos,2)-pow(cX,2)));
   return calcY;
 }
 
 
 void outputAvailableMemory()
 {
-  int avMem = availableMemory();
+  long avMem = availableMemory();
   if (avMem != availMem)
   {
     availMem = avMem;
