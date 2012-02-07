@@ -8,9 +8,8 @@ Currently running on a testboard Atmega328 with two stepstick drivers and a serv
 
 
 
-latest update 20120205  lanthan
-merged upsteram svn r237 changes
+latest update 20120207  lanthan
+merged upsteram svn r243 changes
 
-Status: partly working
-C17 NOT working properly 
-C1 appears to work
+Status: fully functional after upstream switched to longs
+C1 and C17 appear to work now
